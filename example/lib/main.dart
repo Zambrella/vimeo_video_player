@@ -15,10 +15,33 @@ class MyApp extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Vimeo Video Demo'),
         ),
-        body: const VimeoVideoPlayer(
-          loadingIndicator: CircularProgressIndicator(),
-          backgroundColor: Colors.purple,
+        body: Center(
+          child: Column(
+            children: [
+              ElevatedButton(
+                onPressed: () {},
+                child: const Text('Play video'),
+              ),
+              const VideoContainer(),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class VideoContainer extends StatelessWidget {
+  const VideoContainer({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: MediaQuery.of(context).size.width - 20,
+      height: MediaQuery.of(context).size.height - 300,
+      child: const VimeoVideoPlayer(
+        loadingIndicator: CircularProgressIndicator(),
+        backgroundColor: Colors.purple,
       ),
     );
   }

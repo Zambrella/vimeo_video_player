@@ -26,7 +26,7 @@ class VimeoVideoPlayer extends StatefulWidget {
 class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   double? videoWidth;
   double? videoHeight;
-  bool isLoading = false;
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -40,36 +40,34 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    // Temporary
-    videoHeight = MediaQuery.of(context).size.height;
-    videoWidth = MediaQuery.of(context).size.width;
     return Center(
-      child: SizedBox(
-        width: videoHeight,
-        height: videoHeight,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            //* Background
-            Container(
-              decoration: BoxDecoration(
-                color: widget.backgroundColor,
-              ),
-              //* Loading indicator
-              child: Center(
-                child: FractionallySizedBox(
-                  widthFactor: widget.loadingIndicatorSize,
-                  child: AspectRatio(
-                    aspectRatio: 1.0,
-                    child: isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            fit: StackFit.expand,
+            alignment: Alignment.center,
+            children: [
+              //* Background
+              Container(
+                decoration: BoxDecoration(
+                  color: widget.backgroundColor,
+                ),
+                //* Loading indicator
+                child: Center(
+                  child: FractionallySizedBox(
+                    widthFactor: widget.loadingIndicatorSize,
+                    child: AspectRatio(
+                      aspectRatio: 1.0,
+                      child: isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Video
-            // Overlay
-          ],
-        ),
+              // Video
+              // Overlay
+            ],
+          );
+        },
       ),
     );
   }
