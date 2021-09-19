@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 
+part 'src/video_overlay.dart';
+
 class VimeoVideoPlayer extends StatefulWidget {
   const VimeoVideoPlayer({
     Key? key,
@@ -43,9 +45,12 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   late final List<VimeoQualityData> _qualityValues;
   late VimeoQualityData _selectedQuality;
 
+  Future<void>? initFuture;
+
   @override
   void initState() {
     super.initState();
+    _initialiseVideo();
   }
 
   @override
@@ -58,8 +63,19 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
     _qualityValues = await _getQualities(widget.videoUrl);
     _selectedQuality = _qualityValues.last;
     _controller = VideoPlayerController.network(_selectedQuality.url);
-    await _controller.initialize();
+    initFuture = _controller.initialize();
+    setState(() {});
     if (widget.autoPlay) _controller.play();
+  }
+
+  void _playVideo() {
+    _controller.play();
+    setState(() {});
+  }
+
+  void _pauseVideo() {
+    _controller.pause();
+    setState(() {});
   }
 
   @override
@@ -71,15 +87,40 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
           final totalHeight = constraints.maxHeight;
           print('Total Width: $totalWidth, Total Height: $totalHeight');
           return FutureBuilder(
-            future: _initialiseVideo(),
+            // [initFuture] is assigned only once the video data has been collected so that the future doesn't change and cause a rebuild when calling setstate because in this case the value of the future doesn't change once the video data has loaded
+            future: initFuture,
             builder: (context, snapshot) {
+              print(snapshot.connectionState);
               if (snapshot.connectionState == ConnectionState.done) {
-                return AspectRatio(
-                  aspectRatio: _controller.value.aspectRatio,
-                  child: Center(
-                    child: VideoPlayer(_controller),
-                  ),
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: _controller.value.aspectRatio,
+                      child: Center(
+                        child: VideoPlayer(_controller),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.center,
+                      child: IconButton(
+                        onPressed: () {
+                          if (_controller.value.isPlaying) {
+                            _pauseVideo();
+                          } else {
+                            _playVideo();
+                          }
+                        },
+                        icon: Icon(
+                          _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                        ),
+                      ),
+                    )
+                  ],
                 );
+              } else if (snapshot.hasError) {
+                return Text('Error');
               } else {
                 //* Background
                 return Container(
