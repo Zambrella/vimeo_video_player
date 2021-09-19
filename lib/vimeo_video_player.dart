@@ -11,11 +11,12 @@ class VimeoVideoPlayer extends StatefulWidget {
     Key? key,
     required this.videoUrl,
     this.loadingIndicator = const CircularProgressIndicator(),
-    this.backgroundColor = Colors.black,
+    this.backgroundColor = Colors.green,
     this.loadingIndicatorSize = 0.1,
+    this.autoPlay = false,
   }) : super(key: key);
 
-  /// Vimeo link
+  /// Vimeo link in format of "https://player.vimeo.com/video/$videoId".
   final String videoUrl;
 
   /// Widget that is displayed in the middle of the widget while the video loads.
@@ -26,6 +27,9 @@ class VimeoVideoPlayer extends StatefulWidget {
 
   /// Ratio to the width of video.
   final double loadingIndicatorSize;
+
+  /// Set to [true] to have video play as soon as the video is loaded. Defaults to [false].
+  final bool autoPlay;
 
   @override
   State<VimeoVideoPlayer> createState() => _VimeoVideoPlayerState();
@@ -50,12 +54,12 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
     _controller.dispose();
   }
 
-  Future<void> initialiseVideo() async {
+  Future<void> _initialiseVideo() async {
     _qualityValues = await _getQualities(widget.videoUrl);
     _selectedQuality = _qualityValues.last;
     _controller = VideoPlayerController.network(_selectedQuality.url);
-    _controller.initialize();
-    // _controller.play();
+    await _controller.initialize();
+    if (widget.autoPlay) _controller.play();
   }
 
   @override
@@ -63,37 +67,38 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
     return Center(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return Stack(
-            fit: StackFit.expand,
-            alignment: Alignment.center,
-            children: [
-              FutureBuilder(
-                future: initialiseVideo(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done) {
-                    return SizedBox(width: 200, height: 200, child: VideoPlayer(_controller));
-                  } else {
-                    //* Background
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: widget.backgroundColor,
+          final totalWidth = constraints.maxWidth;
+          final totalHeight = constraints.maxHeight;
+          print('Total Width: $totalWidth, Total Height: $totalHeight');
+          return FutureBuilder(
+            future: _initialiseVideo(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                return AspectRatio(
+                  aspectRatio: _controller.value.aspectRatio,
+                  child: Center(
+                    child: VideoPlayer(_controller),
+                  ),
+                );
+              } else {
+                //* Background
+                return Container(
+                  decoration: BoxDecoration(
+                    color: widget.backgroundColor,
+                  ),
+                  //* Loading indicator
+                  child: Center(
+                    child: FractionallySizedBox(
+                      widthFactor: widget.loadingIndicatorSize,
+                      child: AspectRatio(
+                        aspectRatio: 1.0,
+                        child: isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
                       ),
-                      //* Loading indicator
-                      child: Center(
-                        child: FractionallySizedBox(
-                          widthFactor: widget.loadingIndicatorSize,
-                          child: AspectRatio(
-                            aspectRatio: 1.0,
-                            child: isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
-              // Overlay
-            ],
+                    ),
+                  ),
+                );
+              }
+            },
           );
         },
       ),
@@ -102,15 +107,19 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
 }
 
 Future<List<VimeoQualityData>> _getQualities(String videoUrl) async {
+  assert(videoUrl.contains('vimeo'), 'Video url is not a vimeo link');
   try {
     final videoId = videoUrl.substring(videoUrl.lastIndexOf('/') + 1, videoUrl.length).trim();
     // Get data about the video's settings
     final response = await http.get(Uri.parse('https://player.vimeo.com/video/$videoId/config'));
-    // Convert response to a json object
-    final Iterable data = jsonDecode(response.body)['request']['files']['progressive'];
-    // Todo: Improve this by creating a quality object
-    List<VimeoQualityData> qualities = data.map((item) => VimeoQualityData.fromMap(item)).toList();
-    return qualities;
+    if (response.statusCode != 200) {
+      throw Exception('Error getting video data');
+    } else {
+      // Convert response to a json object
+      final Iterable data = jsonDecode(response.body)['request']['files']['progressive'];
+      List<VimeoQualityData> qualities = data.map((item) => VimeoQualityData.fromMap(item)).toList();
+      return qualities;
+    }
   } catch (e) {
     throw Exception('Error fetching video data');
   }
