@@ -80,6 +80,8 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   bool _showOverlay = true;
   String? _errorMessage;
 
+  Future<void>? initFuture;
+
   @override
   void initState() {
     super.initState();
@@ -103,7 +105,6 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
         if (widget.autoPlay) _playVideo();
         return;
       } on PlatformException catch (e) {
-        print(e);
         setState(() {
           _errorMessage = e.message;
         });
@@ -136,12 +137,23 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
     }
   }
 
-  // Todo: handle this
-  void _updateSettings(VimeoQualityData vimeoQualityData) {
+  void _updateSettings(VimeoQualityData vimeoQualityData) async {
+    // Store if the video was playing
+    final wasPlaying = _controller.value.isPlaying;
+    // Pause video
     _pauseVideo();
+    // Update selected quality
     _selectedQuality = vimeoQualityData;
+    // Store the current position of video
+    final currentPosition = _controller.value.position;
+    // Update video controller with new URL
     _controller = VideoPlayerController.network(_selectedQuality.url);
-    _controller.play();
+    // Initialise
+    await _controller.initialize();
+    // Move position of video to where was left off
+    _controller.seekTo(currentPosition);
+    // Play video if it was playing when settings where changed
+    if (wasPlaying) _playVideo();
   }
 
   void _settingsPressed() {
@@ -159,7 +171,10 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                           color: Colors.black,
                         )
                       : null,
-                  onTap: () => _updateSettings(value),
+                  onTap: () {
+                    _updateSettings(value);
+                    Navigator.pop(context);
+                  },
                 ),
               )
               .toList(),
@@ -185,7 +200,6 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   Widget build(BuildContext context) {
     return Material(
       color: widget.isFullScreen ? Colors.black : Colors.transparent,
-      type: MaterialType.canvas,
       child: Center(
         child: FutureBuilder(
           future: _initialiseVideo(),
@@ -283,8 +297,8 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
             } else {
               //* Background
               return Container(
-                decoration: BoxDecoration(
-                  color: widget.backgroundColor,
+                decoration: const BoxDecoration(
+                  color: Colors.transparent,
                 ),
                 //* Loading indicator
                 child: Center(
