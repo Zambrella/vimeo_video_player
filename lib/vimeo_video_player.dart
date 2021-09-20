@@ -3,9 +3,11 @@ library vimeo_video_player;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 import 'package:async/async.dart';
+import 'package:equatable/equatable.dart';
 
 part 'src/video_slider.dart';
 
@@ -19,7 +21,7 @@ class VimeoVideoPlayer extends StatefulWidget {
     this.autoPlay = false,
     this.iconSizes = 30.0,
     this.iconColor = Colors.white,
-    this.iconMargin = 10.0,
+    this.iconMargin = 6.0,
     this.sliderColor = Colors.white,
     this.overlayCloseDelay = const Duration(seconds: 3),
     this.isFullScreen = false,
@@ -76,8 +78,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   // state variables to handle UI
   bool _isPlaying = false;
   bool _showOverlay = true;
-  bool _isLoading = true;
-  bool _hasError = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -94,12 +95,19 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
 
   Future<void> _initialiseVideo() {
     return _memoizer.runOnce(() async {
-      _qualityValues = await _getQualities(widget.videoUrl);
-      _selectedQuality = _qualityValues.last;
-      _controller = VideoPlayerController.network(_selectedQuality.url);
-      await _controller.initialize();
-      if (widget.autoPlay) _playVideo();
-      return;
+      try {
+        _qualityValues = await _getQualities(widget.videoUrl);
+        _selectedQuality = _qualityValues.first;
+        _controller = VideoPlayerController.network(_selectedQuality.url);
+        await _controller.initialize();
+        if (widget.autoPlay) _playVideo();
+        return;
+      } on PlatformException catch (e) {
+        print(e);
+        setState(() {
+          _errorMessage = e.message;
+        });
+      }
     });
   }
 
@@ -145,6 +153,12 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
               .map(
                 (value) => ListTile(
                   title: Text('${value.quality} - ${value.fps} fps'),
+                  trailing: value == _selectedQuality
+                      ? const Icon(
+                          Icons.check,
+                          color: Colors.black,
+                        )
+                      : null,
                   onTap: () => _updateSettings(value),
                 ),
               )
@@ -176,87 +190,96 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
         child: FutureBuilder(
           future: _initialiseVideo(),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done) {
+            if (_errorMessage != null) {
+              return Text(
+                '$_errorMessage',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: widget.isFullScreen ? Colors.white : Colors.black,
+                ),
+              );
+            } else if (snapshot.connectionState == ConnectionState.done) {
               return AspectRatio(
                 aspectRatio: _controller.value.aspectRatio,
-                child: LayoutBuilder(builder: (context, constraints) {
-                  return GestureDetector(
-                    onTap: _toggleOverlay,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      alignment: Alignment.center,
-                      children: [
-                        Center(
-                          child: VideoPlayer(_controller),
-                        ),
-                        if (_showOverlay)
-                          Container(
-                            color: widget.overlayColor.withOpacity(0.3),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      onTap: _toggleOverlay,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        alignment: Alignment.center,
+                        children: [
+                          Center(
+                            child: VideoPlayer(_controller),
                           ),
-                        //* Pause/Play
-                        if (_showOverlay)
-                          Align(
-                            alignment: Alignment.center,
-                            child: IconButton(
-                              onPressed: _playPause,
-                              iconSize: widget.iconSizes * 1.5,
-                              icon: Icon(
-                                _isPlaying ? Icons.pause : Icons.play_arrow,
-                                color: widget.iconColor,
+                          if (_showOverlay)
+                            Container(
+                              color: widget.overlayColor.withOpacity(0.3),
+                            ),
+                          //* Pause/Play
+                          if (_showOverlay)
+                            Align(
+                              alignment: Alignment.center,
+                              child: IconButton(
+                                onPressed: _playPause,
+                                iconSize: widget.iconSizes * 1.5,
+                                icon: Icon(
+                                  _isPlaying ? Icons.pause : Icons.play_arrow,
+                                  color: widget.iconColor,
+                                ),
                               ),
                             ),
-                          ),
-                        //* Settings
-                        if (_showOverlay)
-                          Positioned(
-                            top: widget.iconMargin,
-                            right: widget.iconMargin,
-                            child: IconButton(
-                              onPressed: _settingsPressed,
-                              iconSize: widget.iconSizes,
-                              icon: Icon(
-                                Icons.settings,
-                                color: widget.iconColor,
-                              ),
-                            ),
-                          ),
-                        //* Close
-                        if (_showOverlay && widget.isFullScreen)
-                          Positioned(
-                            top: widget.iconMargin,
-                            left: widget.iconMargin,
-                            child: IconButton(
-                              onPressed: _closePressed,
-                              iconSize: widget.iconSizes,
-                              icon: Icon(
-                                Icons.close,
-                                color: widget.iconColor,
-                              ),
-                            ),
-                          ),
-                        //* Slider
-                        if (_showOverlay)
-                          Positioned(
-                            bottom: widget.iconMargin,
-                            child: SizedBox(
-                              width: constraints.maxWidth,
-                              child: VideoSlider(
-                                _controller,
+                          //* Settings
+                          if (_showOverlay)
+                            Positioned(
+                              top: widget.iconMargin,
+                              right: widget.iconMargin,
+                              child: IconButton(
+                                onPressed: _settingsPressed,
                                 iconSize: widget.iconSizes,
-                                isFullscreen: false,
-                                fullScreenPress: _fullScreenPressed,
-                                iconColor: widget.iconColor,
-                                sliderColor: widget.sliderColor,
+                                icon: Icon(
+                                  Icons.settings,
+                                  color: widget.iconColor,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                  );
-                }),
+                          //* Close
+                          if (_showOverlay && widget.isFullScreen)
+                            Positioned(
+                              top: widget.iconMargin,
+                              left: widget.iconMargin,
+                              child: IconButton(
+                                onPressed: _closePressed,
+                                iconSize: widget.iconSizes,
+                                icon: Icon(
+                                  Icons.close,
+                                  color: widget.iconColor,
+                                ),
+                              ),
+                            ),
+                          //* Slider
+                          if (_showOverlay)
+                            Positioned(
+                              bottom: widget.iconMargin,
+                              child: SizedBox(
+                                width: constraints.maxWidth,
+                                child: VideoSlider(
+                                  _controller,
+                                  iconSize: widget.iconSizes,
+                                  isFullscreen: false,
+                                  fullScreenPress: _fullScreenPressed,
+                                  iconColor: widget.iconColor,
+                                  sliderColor: widget.sliderColor,
+                                  iconMargin: widget.iconMargin,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               );
-            } else if (snapshot.hasError) {
-              return Text('Error');
             } else {
               //* Background
               return Container(
@@ -268,7 +291,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                   child: SizedBox(
                     height: widget.loadingIndicatorSize,
                     width: widget.loadingIndicatorSize,
-                    child: _isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
+                    child: widget.loadingIndicator,
                   ),
                 ),
               );
@@ -291,7 +314,8 @@ Future<List<VimeoQualityData>> _getQualities(String videoUrl) async {
     } else {
       // Convert response to a json object
       final Iterable data = jsonDecode(response.body)['request']['files']['progressive'];
-      List<VimeoQualityData> qualities = data.map((item) => VimeoQualityData.fromMap(item)).toList();
+      List<VimeoQualityData> qualities = data.map((item) => VimeoQualityData.fromMap(item)).toList()
+        ..sort((b, a) => a.width.compareTo(b.width));
       return qualities;
     }
   } catch (e) {
@@ -299,7 +323,7 @@ Future<List<VimeoQualityData>> _getQualities(String videoUrl) async {
   }
 }
 
-class VimeoQualityData {
+class VimeoQualityData extends Equatable {
   const VimeoQualityData({required this.width, required this.height, required this.fps, required this.quality, required this.url});
 
   final int width;
@@ -336,4 +360,7 @@ class VimeoQualityData {
   String toString() {
     return 'VimeoQualityData(width: $width, height: $height, fps: $fps, quality: $quality, url: $url)';
   }
+
+  @override
+  List<Object?> get props => [width, height, fps, quality, url];
 }

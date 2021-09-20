@@ -9,6 +9,7 @@ class VideoSlider extends StatelessWidget {
     required this.isFullscreen,
     required this.iconColor,
     required this.sliderColor,
+    required this.iconMargin,
   }) : super(key: key);
 
   final VideoPlayerController _controller;
@@ -17,6 +18,7 @@ class VideoSlider extends StatelessWidget {
   final bool isFullscreen;
   final Color iconColor;
   final Color sliderColor;
+  final double iconMargin;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +28,9 @@ class VideoSlider extends StatelessWidget {
       builder: (context, VideoPlayerValue value, child) {
         return Row(
           children: [
+            SizedBox(
+              width: iconMargin,
+            ),
             SizedBox(
               width: 50,
               child: Center(
@@ -68,6 +73,9 @@ class VideoSlider extends StatelessWidget {
                 isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
                 color: iconColor,
               ),
+            ),
+            SizedBox(
+              width: iconMargin,
             ),
           ],
         );
