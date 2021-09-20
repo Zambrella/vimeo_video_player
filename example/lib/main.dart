@@ -15,17 +15,43 @@ class MyApp extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Vimeo Video Demo'),
         ),
-        body: Center(
-          child: Column(
-            children: [
-              ElevatedButton(
-                onPressed: () {},
-                child: const Text('Play video'),
-              ),
-              const VideoContainer(),
-            ],
+        body: const HomePage(),
+      ),
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  const HomePage({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        children: [
+          ElevatedButton(
+            onPressed: () {},
+            child: const Text('Play video'),
           ),
-        ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context, rootNavigator: false).push(
+                MaterialPageRoute(
+                  builder: (context) => const VimeoVideoPlayer(
+                    videoUrl: 'https://player.vimeo.com/video/606395365',
+                    // videoUrl: 'https://player.vimeo.com/video/596474336',
+                    loadingIndicator: CircularProgressIndicator(),
+                    backgroundColor: Colors.purple,
+                    autoPlay: true,
+                    isFullScreen: true,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Full Screen Video'),
+          ),
+          const VideoContainer(),
+        ],
       ),
     );
   }
