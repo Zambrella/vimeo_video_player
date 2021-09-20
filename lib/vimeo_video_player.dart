@@ -60,16 +60,16 @@ class VimeoVideoPlayer extends StatefulWidget {
 
 class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   // Video controlling variables
-  late final VideoPlayerController _controller;
   late final List<VimeoQualityData> _qualityValues;
+  late VideoPlayerController _controller;
   late VimeoQualityData _selectedQuality;
   late final AsyncMemoizer _memoizer;
 
   // state variables to handle UI
   bool _isPlaying = false;
   bool _showOverlay = true;
-  bool isLoading = true;
-  bool hasError = false;
+  bool _isLoading = true;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -80,6 +80,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   @override
   void dispose() {
     super.dispose();
+    _controller.pause();
     _controller.dispose();
   }
 
@@ -119,7 +120,31 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
     }
   }
 
-  void _settingsPressed() {}
+  // Todo: handle this
+  void _updateSettings(VimeoQualityData vimeoQualityData) {
+    _pauseVideo();
+    _selectedQuality = vimeoQualityData;
+    _controller = VideoPlayerController.network(_selectedQuality.url);
+    _controller.play();
+  }
+
+  void _settingsPressed() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Wrap(
+          children: _qualityValues
+              .map(
+                (value) => ListTile(
+                  title: Text('${value.quality} - ${value.fps} fps'),
+                  onTap: () => _updateSettings(value),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
 
   void _closePressed() {}
 
@@ -142,6 +167,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
             future: _initialiseVideo(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.done) {
+                print(_selectedQuality);
                 return Stack(
                   alignment: Alignment.center,
                   children: [
@@ -227,7 +253,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                     child: SizedBox(
                       height: widget.loadingIndicatorSize,
                       width: widget.loadingIndicatorSize,
-                      child: isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
+                      child: _isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
                     ),
                   ),
                 );
