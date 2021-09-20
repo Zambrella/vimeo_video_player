@@ -21,6 +21,7 @@ class VimeoVideoPlayer extends StatefulWidget {
     this.iconColor = Colors.white,
     this.iconMargin = 10.0,
     this.sliderColor = Colors.white,
+    this.overlayCloseDelay = const Duration(seconds: 3),
   }) : super(key: key);
 
   /// Vimeo link in format of "https://player.vimeo.com/video/$videoId".
@@ -50,24 +51,25 @@ class VimeoVideoPlayer extends StatefulWidget {
   // Color of slider. Buffered and background color of slider will display with this color but with opacity.
   final Color sliderColor;
 
+  // Time it takes for the overlay to close after pressing play
+  final Duration overlayCloseDelay;
+
   @override
   State<VimeoVideoPlayer> createState() => _VimeoVideoPlayerState();
 }
 
 class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
-  bool isLoading = true;
-  bool hasError = false;
-
+  // Video controlling variables
   late final VideoPlayerController _controller;
   late final List<VimeoQualityData> _qualityValues;
   late VimeoQualityData _selectedQuality;
-
   late final AsyncMemoizer _memoizer;
 
-  Future<void>? initFuture;
-
+  // state variables to handle UI
   bool _isPlaying = false;
   bool _showOverlay = true;
+  bool isLoading = true;
+  bool hasError = false;
 
   @override
   void initState() {
@@ -94,8 +96,11 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
 
   void _playVideo() {
     _controller.play();
-    setState(() {
-      _isPlaying = true;
+    setState(() => _isPlaying = true);
+    Future.delayed(widget.overlayCloseDelay, () {
+      if (_controller.value.isPlaying) {
+        setState(() => _showOverlay = false);
+      }
     });
   }
 
@@ -118,6 +123,14 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
 
   void _closePressed() {}
 
+  void _fullScreenPressed() {}
+
+  void _toggleOverlay() {
+    setState(() {
+      _showOverlay = !_showOverlay;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -135,63 +148,70 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                     //* Video
                     AspectRatio(
                       aspectRatio: _controller.value.aspectRatio,
-                      child: Center(
-                        child: VideoPlayer(_controller),
+                      child: GestureDetector(
+                        onTap: _toggleOverlay,
+                        child: Center(
+                          child: VideoPlayer(_controller),
+                        ),
                       ),
                     ),
                     //* Pause/Play
-                    Align(
-                      alignment: Alignment.center,
-                      child: IconButton(
-                        onPressed: _playPause,
-                        iconSize: widget.iconSizes * 1.5,
-                        icon: Icon(
-                          _isPlaying ? Icons.pause : Icons.play_arrow,
-                          color: widget.iconColor,
+                    if (_showOverlay)
+                      Align(
+                        alignment: Alignment.center,
+                        child: IconButton(
+                          onPressed: _playPause,
+                          iconSize: widget.iconSizes * 1.5,
+                          icon: Icon(
+                            _isPlaying ? Icons.pause : Icons.play_arrow,
+                            color: widget.iconColor,
+                          ),
                         ),
                       ),
-                    ),
                     //* Settings
-                    Positioned(
-                      top: widget.iconMargin,
-                      right: widget.iconMargin,
-                      child: IconButton(
-                        onPressed: _settingsPressed,
-                        iconSize: widget.iconSizes,
-                        icon: Icon(
-                          Icons.settings,
-                          color: widget.iconColor,
-                        ),
-                      ),
-                    ),
-                    //* Close
-                    Positioned(
-                      top: widget.iconMargin,
-                      left: widget.iconMargin,
-                      child: IconButton(
-                        onPressed: _closePressed,
-                        iconSize: widget.iconSizes,
-                        icon: Icon(
-                          Icons.close,
-                          color: widget.iconColor,
-                        ),
-                      ),
-                    ),
-                    //* Slider
-                    Positioned(
-                      bottom: widget.iconMargin,
-                      child: SizedBox(
-                        width: totalWidth,
-                        child: VideoSlider(
-                          _controller,
+                    if (_showOverlay)
+                      Positioned(
+                        top: widget.iconMargin,
+                        right: widget.iconMargin,
+                        child: IconButton(
+                          onPressed: _settingsPressed,
                           iconSize: widget.iconSizes,
-                          isFullscreen: false,
-                          fullScreenPress: () {},
-                          iconColor: widget.iconColor,
-                          sliderColor: widget.sliderColor,
+                          icon: Icon(
+                            Icons.settings,
+                            color: widget.iconColor,
+                          ),
                         ),
                       ),
-                    ),
+                    //* Close
+                    if (_showOverlay)
+                      Positioned(
+                        top: widget.iconMargin,
+                        left: widget.iconMargin,
+                        child: IconButton(
+                          onPressed: _closePressed,
+                          iconSize: widget.iconSizes,
+                          icon: Icon(
+                            Icons.close,
+                            color: widget.iconColor,
+                          ),
+                        ),
+                      ),
+                    //* Slider
+                    if (_showOverlay)
+                      Positioned(
+                        bottom: widget.iconMargin,
+                        child: SizedBox(
+                          width: totalWidth,
+                          child: VideoSlider(
+                            _controller,
+                            iconSize: widget.iconSizes,
+                            isFullscreen: false,
+                            fullScreenPress: _fullScreenPressed,
+                            iconColor: widget.iconColor,
+                            sliderColor: widget.sliderColor,
+                          ),
+                        ),
+                      ),
                   ],
                 );
               } else if (snapshot.hasError) {
