@@ -26,10 +26,6 @@ class VideoSlider extends StatelessWidget {
       builder: (context, VideoPlayerValue value, child) {
         return Row(
           children: [
-            // Empty box to balance the fullscreen button
-            SizedBox(
-              width: iconSize,
-            ),
             SizedBox(
               width: 50,
               child: Center(

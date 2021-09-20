@@ -70,7 +70,7 @@ class VideoContainer extends StatelessWidget {
         // videoUrl: 'https://player.vimeo.com/video/596474336',
         loadingIndicator: CircularProgressIndicator(),
         backgroundColor: Colors.purple,
-        autoPlay: true,
+        autoPlay: false,
       ),
     );
   }

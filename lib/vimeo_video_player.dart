@@ -23,6 +23,7 @@ class VimeoVideoPlayer extends StatefulWidget {
     this.sliderColor = Colors.white,
     this.overlayCloseDelay = const Duration(seconds: 3),
     this.isFullScreen = false,
+    this.overlayColor = Colors.black,
   }) : super(key: key);
 
   /// Vimeo link in format of "https://player.vimeo.com/video/$videoId".
@@ -54,6 +55,9 @@ class VimeoVideoPlayer extends StatefulWidget {
 
   // Time it takes for the overlay to close after pressing play
   final Duration overlayCloseDelay;
+
+  // When the overlay is shown, this will cover the entire video. This video will be shown with an opacity of 0.2.
+  final Color overlayColor;
 
   // Set to [true] if the video is the only widget on the page
   final bool isFullScreen;
@@ -169,107 +173,106 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
       color: widget.isFullScreen ? Colors.black : Colors.transparent,
       type: MaterialType.canvas,
       child: Center(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final totalWidth = constraints.maxWidth;
-            final totalHeight = constraints.maxHeight;
-            return FutureBuilder(
-              future: _initialiseVideo(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  print(_selectedQuality);
-                  return Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      //* Video
-                      AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        child: GestureDetector(
-                          onTap: _toggleOverlay,
-                          child: Center(
-                            child: VideoPlayer(_controller),
-                          ),
+        child: FutureBuilder(
+          future: _initialiseVideo(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done) {
+              return AspectRatio(
+                aspectRatio: _controller.value.aspectRatio,
+                child: LayoutBuilder(builder: (context, constraints) {
+                  return GestureDetector(
+                    onTap: _toggleOverlay,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      alignment: Alignment.center,
+                      children: [
+                        Center(
+                          child: VideoPlayer(_controller),
                         ),
-                      ),
-                      //* Pause/Play
-                      if (_showOverlay)
-                        Align(
-                          alignment: Alignment.center,
-                          child: IconButton(
-                            onPressed: _playPause,
-                            iconSize: widget.iconSizes * 1.5,
-                            icon: Icon(
-                              _isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: widget.iconColor,
+                        if (_showOverlay)
+                          Container(
+                            color: widget.overlayColor.withOpacity(0.3),
+                          ),
+                        //* Pause/Play
+                        if (_showOverlay)
+                          Align(
+                            alignment: Alignment.center,
+                            child: IconButton(
+                              onPressed: _playPause,
+                              iconSize: widget.iconSizes * 1.5,
+                              icon: Icon(
+                                _isPlaying ? Icons.pause : Icons.play_arrow,
+                                color: widget.iconColor,
+                              ),
                             ),
                           ),
-                        ),
-                      //* Settings
-                      if (_showOverlay)
-                        Positioned(
-                          top: widget.iconMargin,
-                          right: widget.iconMargin,
-                          child: IconButton(
-                            onPressed: _settingsPressed,
-                            iconSize: widget.iconSizes,
-                            icon: Icon(
-                              Icons.settings,
-                              color: widget.iconColor,
-                            ),
-                          ),
-                        ),
-                      //* Close
-                      if (_showOverlay && widget.isFullScreen)
-                        Positioned(
-                          top: widget.iconMargin,
-                          left: widget.iconMargin,
-                          child: IconButton(
-                            onPressed: _closePressed,
-                            iconSize: widget.iconSizes,
-                            icon: Icon(
-                              Icons.close,
-                              color: widget.iconColor,
-                            ),
-                          ),
-                        ),
-                      //* Slider
-                      if (_showOverlay)
-                        Positioned(
-                          bottom: widget.iconMargin,
-                          child: SizedBox(
-                            width: totalWidth,
-                            child: VideoSlider(
-                              _controller,
+                        //* Settings
+                        if (_showOverlay)
+                          Positioned(
+                            top: widget.iconMargin,
+                            right: widget.iconMargin,
+                            child: IconButton(
+                              onPressed: _settingsPressed,
                               iconSize: widget.iconSizes,
-                              isFullscreen: false,
-                              fullScreenPress: _fullScreenPressed,
-                              iconColor: widget.iconColor,
-                              sliderColor: widget.sliderColor,
+                              icon: Icon(
+                                Icons.settings,
+                                color: widget.iconColor,
+                              ),
                             ),
                           ),
-                        ),
-                    ],
-                  );
-                } else if (snapshot.hasError) {
-                  return Text('Error');
-                } else {
-                  //* Background
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: widget.backgroundColor,
+                        //* Close
+                        if (_showOverlay && widget.isFullScreen)
+                          Positioned(
+                            top: widget.iconMargin,
+                            left: widget.iconMargin,
+                            child: IconButton(
+                              onPressed: _closePressed,
+                              iconSize: widget.iconSizes,
+                              icon: Icon(
+                                Icons.close,
+                                color: widget.iconColor,
+                              ),
+                            ),
+                          ),
+                        //* Slider
+                        if (_showOverlay)
+                          Positioned(
+                            bottom: widget.iconMargin,
+                            child: SizedBox(
+                              width: constraints.maxWidth,
+                              child: VideoSlider(
+                                _controller,
+                                iconSize: widget.iconSizes,
+                                isFullscreen: false,
+                                fullScreenPress: _fullScreenPressed,
+                                iconColor: widget.iconColor,
+                                sliderColor: widget.sliderColor,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    //* Loading indicator
-                    child: Center(
-                      child: SizedBox(
-                        height: widget.loadingIndicatorSize,
-                        width: widget.loadingIndicatorSize,
-                        child: _isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
-                      ),
-                    ),
                   );
-                }
-              },
-            );
+                }),
+              );
+            } else if (snapshot.hasError) {
+              return Text('Error');
+            } else {
+              //* Background
+              return Container(
+                decoration: BoxDecoration(
+                  color: widget.backgroundColor,
+                ),
+                //* Loading indicator
+                child: Center(
+                  child: SizedBox(
+                    height: widget.loadingIndicatorSize,
+                    width: widget.loadingIndicatorSize,
+                    child: _isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
+                  ),
+                ),
+              );
+            }
           },
         ),
       ),
