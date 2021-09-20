@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 import 'package:async/async.dart';
 
-part 'src/video_overlay.dart';
+part 'src/video_slider.dart';
 
 class VimeoVideoPlayer extends StatefulWidget {
   const VimeoVideoPlayer({
@@ -15,8 +15,12 @@ class VimeoVideoPlayer extends StatefulWidget {
     required this.videoUrl,
     this.loadingIndicator = const CircularProgressIndicator(),
     this.backgroundColor = Colors.green,
-    this.loadingIndicatorSize = 0.1,
+    this.loadingIndicatorSize = 30.0,
     this.autoPlay = false,
+    this.iconSizes = 30.0,
+    this.iconColor = Colors.white,
+    this.iconMargin = 10.0,
+    this.sliderColor = Colors.white,
   }) : super(key: key);
 
   /// Vimeo link in format of "https://player.vimeo.com/video/$videoId".
@@ -28,11 +32,23 @@ class VimeoVideoPlayer extends StatefulWidget {
   /// Background color of canvas for video. Only displays while the video is loading.
   final Color backgroundColor;
 
-  /// Ratio to the width of video.
+  /// Size, in pixels, of loading widget
   final double loadingIndicatorSize;
 
   /// Set to [true] to have video play as soon as the video is loaded. Defaults to [false].
   final bool autoPlay;
+
+  // Size, in pixels, of overlay icons; play, pause, fullscreen, close
+  final double iconSizes;
+
+  // Color of overlay icons
+  final Color iconColor;
+
+  // Distance of icons from the edges of the video
+  final double iconMargin;
+
+  // Color of slider. Buffered and background color of slider will display with this color but with opacity.
+  final Color sliderColor;
 
   @override
   State<VimeoVideoPlayer> createState() => _VimeoVideoPlayerState();
@@ -49,6 +65,9 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   late final AsyncMemoizer _memoizer;
 
   Future<void>? initFuture;
+
+  bool _isPlaying = false;
+  bool _showOverlay = true;
 
   @override
   void initState() {
@@ -68,19 +87,36 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
       _selectedQuality = _qualityValues.last;
       _controller = VideoPlayerController.network(_selectedQuality.url);
       await _controller.initialize();
-      if (widget.autoPlay) _controller.play();
+      if (widget.autoPlay) _playVideo();
+      return;
     });
   }
 
   void _playVideo() {
     _controller.play();
-    setState(() {});
+    setState(() {
+      _isPlaying = true;
+    });
   }
 
   void _pauseVideo() {
     _controller.pause();
-    setState(() {});
+    setState(() {
+      _isPlaying = false;
+    });
   }
+
+  void _playPause() {
+    if (_controller.value.isPlaying) {
+      _pauseVideo();
+    } else {
+      _playVideo();
+    }
+  }
+
+  void _settingsPressed() {}
+
+  void _closePressed() {}
 
   @override
   Widget build(BuildContext context) {
@@ -89,37 +125,73 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
         builder: (context, constraints) {
           final totalWidth = constraints.maxWidth;
           final totalHeight = constraints.maxHeight;
-          print('Total Width: $totalWidth, Total Height: $totalHeight');
           return FutureBuilder(
             future: _initialiseVideo(),
             builder: (context, snapshot) {
-              print(snapshot.connectionState);
               if (snapshot.connectionState == ConnectionState.done) {
                 return Stack(
                   alignment: Alignment.center,
                   children: [
+                    //* Video
                     AspectRatio(
                       aspectRatio: _controller.value.aspectRatio,
                       child: Center(
                         child: VideoPlayer(_controller),
                       ),
                     ),
+                    //* Pause/Play
                     Align(
                       alignment: Alignment.center,
                       child: IconButton(
-                        onPressed: () {
-                          if (_controller.value.isPlaying) {
-                            _pauseVideo();
-                          } else {
-                            _playVideo();
-                          }
-                        },
+                        onPressed: _playPause,
+                        iconSize: widget.iconSizes * 1.5,
                         icon: Icon(
-                          _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                          color: Colors.white,
+                          _isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: widget.iconColor,
                         ),
                       ),
-                    )
+                    ),
+                    //* Settings
+                    Positioned(
+                      top: widget.iconMargin,
+                      right: widget.iconMargin,
+                      child: IconButton(
+                        onPressed: _settingsPressed,
+                        iconSize: widget.iconSizes,
+                        icon: Icon(
+                          Icons.settings,
+                          color: widget.iconColor,
+                        ),
+                      ),
+                    ),
+                    //* Close
+                    Positioned(
+                      top: widget.iconMargin,
+                      left: widget.iconMargin,
+                      child: IconButton(
+                        onPressed: _closePressed,
+                        iconSize: widget.iconSizes,
+                        icon: Icon(
+                          Icons.close,
+                          color: widget.iconColor,
+                        ),
+                      ),
+                    ),
+                    //* Slider
+                    Positioned(
+                      bottom: widget.iconMargin,
+                      child: SizedBox(
+                        width: totalWidth,
+                        child: VideoSlider(
+                          _controller,
+                          iconSize: widget.iconSizes,
+                          isFullscreen: false,
+                          fullScreenPress: () {},
+                          iconColor: widget.iconColor,
+                          sliderColor: widget.sliderColor,
+                        ),
+                      ),
+                    ),
                   ],
                 );
               } else if (snapshot.hasError) {
@@ -132,12 +204,10 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                   ),
                   //* Loading indicator
                   child: Center(
-                    child: FractionallySizedBox(
-                      widthFactor: widget.loadingIndicatorSize,
-                      child: AspectRatio(
-                        aspectRatio: 1.0,
-                        child: isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
-                      ),
+                    child: SizedBox(
+                      height: widget.loadingIndicatorSize,
+                      width: widget.loadingIndicatorSize,
+                      child: isLoading ? widget.loadingIndicator : const SizedBox.shrink(),
                     ),
                   ),
                 );
