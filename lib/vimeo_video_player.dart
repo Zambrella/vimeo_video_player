@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
-import 'package:async/async.dart';
 import 'package:equatable/equatable.dart';
 
 part 'src/video_slider.dart';
@@ -73,7 +72,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   late final List<VimeoQualityData> _qualityValues;
   late VideoPlayerController _controller;
   late VimeoQualityData _selectedQuality;
-  late final AsyncMemoizer _memoizer;
+  Duration? _seekTo;
 
   // state variables to handle UI
   bool _isPlaying = false;
@@ -85,7 +84,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   @override
   void initState() {
     super.initState();
-    _memoizer = AsyncMemoizer();
+    _initialiseVideo();
   }
 
   @override
@@ -95,21 +94,34 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
     _controller.dispose();
   }
 
-  Future<void> _initialiseVideo() {
-    return _memoizer.runOnce(() async {
-      try {
-        _qualityValues = await _getQualities(widget.videoUrl);
-        _selectedQuality = _qualityValues.first;
-        _controller = VideoPlayerController.network(_selectedQuality.url);
-        await _controller.initialize();
-        if (widget.autoPlay) _playVideo();
-        return;
-      } on PlatformException catch (e) {
-        setState(() {
-          _errorMessage = e.message;
-        });
-      }
-    });
+  Future<void> _initialiseVideo() async {
+    try {
+      _qualityValues = await _getQualities(widget.videoUrl);
+      _selectedQuality = _qualityValues.first;
+      _controller = VideoPlayerController.network(_selectedQuality.url);
+      rotateScreen(_selectedQuality.width / _selectedQuality.height);
+      setState(() {
+        initFuture = _controller.initialize();
+      });
+      if (widget.autoPlay) _playVideo();
+      return;
+    } on PlatformException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+      });
+    }
+  }
+
+  void rotateScreen(double aspectRatio) {
+    if (aspectRatio > 1 && widget.isFullScreen) {
+      setState(() {
+        SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+      });
+    } else {
+      setState(() {
+        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitDown, DeviceOrientation.portraitUp]);
+      });
+    }
   }
 
   void _playVideo() {
@@ -140,18 +152,19 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   void _updateSettings(VimeoQualityData vimeoQualityData) async {
     // Store if the video was playing
     final wasPlaying = _controller.value.isPlaying;
+    // Store the current position of video
+    _seekTo = _controller.value.position;
     // Pause video
     _pauseVideo();
+    await _controller.dispose();
     // Update selected quality
     _selectedQuality = vimeoQualityData;
-    // Store the current position of video
-    final currentPosition = _controller.value.position;
     // Update video controller with new URL
     _controller = VideoPlayerController.network(_selectedQuality.url);
     // Initialise
-    await _controller.initialize();
-    // Move position of video to where was left off
-    _controller.seekTo(currentPosition);
+    setState(() {
+      initFuture = _controller.initialize();
+    });
     // Play video if it was playing when settings where changed
     if (wasPlaying) _playVideo();
   }
@@ -185,6 +198,9 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
 
   void _closePressed() {
     _controller.pause();
+    setState(() {
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitDown, DeviceOrientation.portraitUp]);
+    });
     Navigator.of(context).pop();
   }
 
@@ -202,7 +218,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
       color: widget.isFullScreen ? Colors.black : Colors.transparent,
       child: Center(
         child: FutureBuilder(
-          future: _initialiseVideo(),
+          future: initFuture,
           builder: (context, snapshot) {
             if (_errorMessage != null) {
               return Text(
@@ -213,6 +229,11 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                 ),
               );
             } else if (snapshot.connectionState == ConnectionState.done) {
+              // Seeking only works once initialised has completed
+              if (_seekTo != null) {
+                _controller.seekTo(_seekTo!);
+                _seekTo = null;
+              }
               return AspectRatio(
                 aspectRatio: _controller.value.aspectRatio,
                 child: LayoutBuilder(
@@ -223,9 +244,11 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                         fit: StackFit.expand,
                         alignment: Alignment.center,
                         children: [
+                          //* Video
                           Center(
                             child: VideoPlayer(_controller),
                           ),
+                          //* Darken overlay
                           if (_showOverlay)
                             Container(
                               color: widget.overlayColor.withOpacity(0.3),
@@ -280,7 +303,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                                 child: VideoSlider(
                                   _controller,
                                   iconSize: widget.iconSizes,
-                                  isFullscreen: false,
+                                  isFullscreen: widget.isFullScreen,
                                   fullScreenPress: _fullScreenPressed,
                                   iconColor: widget.iconColor,
                                   sliderColor: widget.sliderColor,
@@ -378,3 +401,7 @@ class VimeoQualityData extends Equatable {
   @override
   List<Object?> get props => [width, height, fps, quality, url];
 }
+
+enum Orientation { landscape, portrait }
+
+extension GetRotation on Orientation {}
