@@ -25,7 +25,30 @@ class VimeoVideoPlayer extends StatefulWidget {
     this.overlayCloseDelay = const Duration(seconds: 3),
     this.isFullScreen = false,
     this.overlayColor = Colors.black,
+    this.qualityData,
+    this.videoPlayerController,
+    this.selectedQuality,
+    this.constructorType = _ConstructorType.regular,
   }) : super(key: key);
+
+  /// Constructor to built a new instance of [VimeoVideoPlayer] with fullscreen parameters. Only to be used internally.
+  const VimeoVideoPlayer.fullscreen({
+    required String videoUrl,
+    required List<VimeoQualityData> qualityData,
+    required VideoPlayerController controller,
+    required VimeoQualityData selectedQuality,
+    required _ConstructorType constructorType,
+    Key? key,
+  }) : this(
+          key: key,
+          videoUrl: videoUrl,
+          isFullScreen: true,
+          qualityData: qualityData,
+          videoPlayerController: controller,
+          selectedQuality: selectedQuality,
+          constructorType: _ConstructorType.fullscreen,
+          autoPlay: true,
+        );
 
   /// Vimeo link in format of "https://player.vimeo.com/video/$videoId".
   final String videoUrl;
@@ -63,6 +86,12 @@ class VimeoVideoPlayer extends StatefulWidget {
   // Set to [true] if the video is the only widget on the page
   final bool isFullScreen;
 
+  // Inline fullscreen variables
+  final List<VimeoQualityData>? qualityData;
+  final VimeoQualityData? selectedQuality;
+  final VideoPlayerController? videoPlayerController;
+  final _ConstructorType constructorType;
+
   @override
   State<VimeoVideoPlayer> createState() => _VimeoVideoPlayerState();
 }
@@ -89,21 +118,30 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
 
   @override
   void dispose() {
+    // Let the framework dispose of the controller if the widget was not built by the video player itself
+    // if (widget.constructorType == _ConstructorType.regular) {
+    _controller.pause();
+    _controller.dispose();
+    // }
     super.dispose();
+  }
+
+  void _customDispose() {
     _controller.pause();
     _controller.dispose();
   }
 
   Future<void> _initialiseVideo() async {
     try {
-      _qualityValues = await _getQualities(widget.videoUrl);
-      _selectedQuality = _qualityValues.first;
-      _controller = VideoPlayerController.network(_selectedQuality.url);
-      rotateScreen(_selectedQuality.width / _selectedQuality.height);
+      _qualityValues = widget.qualityData ?? await _getQualities(widget.videoUrl);
+      _selectedQuality = widget.selectedQuality ?? _qualityValues.first;
+      _controller = widget.videoPlayerController ?? VideoPlayerController.network(_selectedQuality.url);
+      _seekTo = _controller.value.position;
+      _rotateScreen(_selectedQuality.width / _selectedQuality.height);
+      if (widget.autoPlay) _playVideo();
       setState(() {
         initFuture = _controller.initialize();
       });
-      if (widget.autoPlay) _playVideo();
       return;
     } on PlatformException catch (e) {
       setState(() {
@@ -112,7 +150,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
     }
   }
 
-  void rotateScreen(double aspectRatio) {
+  void _rotateScreen(double aspectRatio) {
     if (aspectRatio > 1 && widget.isFullScreen) {
       setState(() {
         SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
@@ -197,14 +235,33 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
   }
 
   void _closePressed() {
-    _controller.pause();
+    _controller.pause(); //? Is this needed
     setState(() {
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitDown, DeviceOrientation.portraitUp]);
     });
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(_controller);
   }
 
-  void _fullScreenPressed() {}
+  void _fullScreenPressed() async {
+    if (widget.isFullScreen) {
+      _closePressed();
+    } else {
+      _controller.pause();
+      _controller = await Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'Vimeo Full Screen Player'),
+          builder: (context) => VimeoVideoPlayer.fullscreen(
+            videoUrl: widget.videoUrl,
+            qualityData: _qualityValues,
+            controller: _controller,
+            selectedQuality: _selectedQuality,
+            constructorType: _ConstructorType.fullscreen,
+          ),
+        ),
+      );
+      setState(() {});
+    }
+  }
 
   void _toggleOverlay() {
     setState(() {
@@ -234,6 +291,7 @@ class _VimeoVideoPlayerState extends State<VimeoVideoPlayer> {
                 _controller.seekTo(_seekTo!);
                 _seekTo = null;
               }
+
               return AspectRatio(
                 aspectRatio: _controller.value.aspectRatio,
                 child: LayoutBuilder(
@@ -351,6 +409,7 @@ Future<List<VimeoQualityData>> _getQualities(String videoUrl) async {
     } else {
       // Convert response to a json object
       final Iterable data = jsonDecode(response.body)['request']['files']['progressive'];
+      // Map response data to objects then sort by highest resolution first
       List<VimeoQualityData> qualities = data.map((item) => VimeoQualityData.fromMap(item)).toList()
         ..sort((b, a) => a.width.compareTo(b.width));
       return qualities;
@@ -401,6 +460,8 @@ class VimeoQualityData extends Equatable {
   @override
   List<Object?> get props => [width, height, fps, quality, url];
 }
+
+enum _ConstructorType { regular, fullscreen }
 
 enum Orientation { landscape, portrait }
 

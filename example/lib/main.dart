@@ -35,11 +35,11 @@ class HomePage extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.of(context, rootNavigator: false).push(
+              Navigator.of(context, rootNavigator: true).push(
                 MaterialPageRoute(
                   builder: (context) => const VimeoVideoPlayer(
-                    // videoUrl: 'https://player.vimeo.com/video/606395365',
-                    videoUrl: 'https://player.vimeo.com/video/596474336',
+                    videoUrl: 'https://player.vimeo.com/video/606395365',
+                    // videoUrl: 'https://player.vimeo.com/video/596474336',
                     loadingIndicator: CircularProgressIndicator(),
                     backgroundColor: Colors.purple,
                     autoPlay: true,
@@ -66,11 +66,11 @@ class VideoContainer extends StatelessWidget {
       width: MediaQuery.of(context).size.width - 20,
       height: MediaQuery.of(context).size.height - 300,
       child: const VimeoVideoPlayer(
-        // videoUrl: 'https://player.vimeo.com/video/606395365',
-        videoUrl: 'https://player.vimeo.com/video/596474336',
+        videoUrl: 'https://player.vimeo.com/video/606395365',
+        // videoUrl: 'https://player.vimeo.com/video/596474336',
         loadingIndicator: CircularProgressIndicator(),
         backgroundColor: Colors.purple,
-        autoPlay: false,
+        autoPlay: true,
       ),
     );
   }
